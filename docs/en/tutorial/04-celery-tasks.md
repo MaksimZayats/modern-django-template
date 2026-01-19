@@ -122,8 +122,8 @@ Register the new controller in the IoC container so it can be resolved with its 
 from punq import Container, Scope
 
 from delivery.http.factories import AdminSiteFactory, FastAPIFactory, URLPatternsFactory
-from delivery.http.health.controllers import HealthController
-from delivery.http.user.controllers import UserController, UserTokenController
+from delivery.http.controllers.health.controllers import HealthController
+from delivery.http.controllers.user.controllers import UserController, UserTokenController
 from delivery.tasks.factories import CeleryAppFactory, TasksRegistryFactory
 from delivery.tasks.settings import CelerySettings
 from delivery.tasks.tasks.ping import PingTaskController

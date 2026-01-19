@@ -8,8 +8,8 @@ from fastapi.requests import Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from core.user.models import User
+from core.user.services.jwt import JWTService
 from core.user.services.user import UserService
-from delivery.services.jwt import JWTService
 
 
 class AuthenticatedRequestState(Protocol):

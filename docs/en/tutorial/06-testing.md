@@ -51,7 +51,7 @@ from core.todo.models import Todo
 from core.todo.services import TodoService
 from core.user.models import User
 from delivery.http.factories import FastAPIFactory
-from delivery.services.jwt import JWTService
+from core.user.services.jwt import JWTService
 from delivery.tasks.factories import CeleryAppFactory, TasksRegistryFactory
 from delivery.tasks.registry import TasksRegistry
 from infrastructure.punq.container import AutoRegisteringContainer
@@ -67,18 +67,18 @@ class BaseFactory(ABC):
 
 class ContainerBasedFactory(BaseFactory, ABC):
     def __init__(
-        self,
-        container: AutoRegisteringContainer,
+            self,
+            container: AutoRegisteringContainer,
     ) -> None:
         self._container = container
 
 
 class TestClientFactory(ContainerBasedFactory):
     def __call__(
-        self,
-        auth_for_user: User | None = None,
-        headers: dict[str, str] | None = None,
-        **kwargs: Any,
+            self,
+            auth_for_user: User | None = None,
+            headers: dict[str, str] | None = None,
+            **kwargs: Any,
     ) -> TestClient:
         api_factory = self._container.resolve(FastAPIFactory)
         jwt_service = self._container.resolve(JWTService)
@@ -98,13 +98,13 @@ class TestClientFactory(ContainerBasedFactory):
 
 class TestUserFactory(ContainerBasedFactory):
     def __call__(
-        self,
-        username: str = "test_user",
-        password: str = "password123",  # noqa: S107
-        email: str = "user@test.com",
-        *,
-        is_staff: bool = False,
-        **kwargs: Any,
+            self,
+            username: str = "test_user",
+            password: str = "password123",  # noqa: S107
+            email: str = "user@test.com",
+            *,
+            is_staff: bool = False,
+            **kwargs: Any,
     ) -> User:
         return User.objects.create_user(
             username=username,
@@ -135,11 +135,11 @@ class TestTodoFactory(ContainerBasedFactory):
     """Factory for creating test Todo instances."""
 
     def __call__(
-        self,
-        user: User,
-        title: str = "Test Todo",
-        description: str = "Test description",
-        is_completed: bool = False,
+            self,
+            user: User,
+            title: str = "Test Todo",
+            description: str = "Test description",
+            is_completed: bool = False,
     ) -> Todo:
         todo_service = self._container.resolve(TodoService)
 

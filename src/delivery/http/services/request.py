@@ -19,7 +19,7 @@ class RequestInfoServiceSettings(BaseSettings):
     """Header to look for the user agent string."""
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RequestInfoService:
     _settings: RequestInfoServiceSettings
 

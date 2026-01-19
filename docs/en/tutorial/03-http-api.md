@@ -372,8 +372,8 @@ First, add the import:
 
 ```python title="src/ioc/registries/delivery.py" hl_lines="4"
 from delivery.http.factories import AdminSiteFactory, FastAPIFactory, URLPatternsFactory
-from delivery.http.health.controllers import HealthController
-from delivery.http.user.controllers import UserController, UserTokenController
+from delivery.http.controllers.health.controllers import HealthController
+from delivery.http.controllers.user.controllers import UserController, UserTokenController
 from delivery.http.todo.controllers import TodoController  # Add this import
 ```
 
@@ -394,8 +394,8 @@ Modify `src/delivery/http/factories.py` to include the todo controller.
 First, add the import:
 
 ```python title="src/delivery/http/factories.py" hl_lines="4"
-from delivery.http.health.controllers import HealthController
-from delivery.http.user.controllers import UserController, UserTokenController
+from delivery.http.controllers.health.controllers import HealthController
+from delivery.http.controllers.user.controllers import UserController, UserTokenController
 from delivery.http.todo.controllers import TodoController  # Add this import
 ```
 
@@ -437,7 +437,7 @@ Finally, update the `AdminSiteFactory` to import the todo admin:
 ```python title="src/delivery/http/factories.py" hl_lines="4"
 class AdminSiteFactory:
     def __call__(self) -> AdminSite:
-        from delivery.http.user import admin as _user_admin  # noqa: F401, PLC0415
+        from delivery.http.controllers.user import admin as _user_admin
         from delivery.http.todo import admin as _todo_admin  # noqa: F401, PLC0415
 
         return default_site

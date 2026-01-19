@@ -32,6 +32,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "icecream>=2.1.9",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "prek>=0.2.28",

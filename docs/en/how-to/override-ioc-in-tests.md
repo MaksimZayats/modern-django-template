@@ -80,7 +80,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from delivery.services.jwt import JWTService
+from core.user.services.jwt import JWTService
 from infrastructure.punq.container import AutoRegisteringContainer
 from tests.integration.factories import TestClientFactory, TestUserFactory
 
@@ -96,10 +96,10 @@ def mock_jwt_service() -> MagicMock:
 
 @pytest.mark.django_db(transaction=True)
 def test_jwt_decoding_with_mock(
-    container: AutoRegisteringContainer,
-    mock_jwt_service: MagicMock,
-    test_client_factory: TestClientFactory,
-    user_factory: TestUserFactory,
+        container: AutoRegisteringContainer,
+        mock_jwt_service: MagicMock,
+        test_client_factory: TestClientFactory,
+        user_factory: TestUserFactory,
 ) -> None:
     # Register the mock BEFORE creating factories
     container.register(JWTService, instance=mock_jwt_service)

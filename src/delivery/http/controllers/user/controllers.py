@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Annotated, Any
 
@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from throttled import rate_limiter
 
+from core.user.services.jwt import JWTService
 from core.user.services.refresh_session import (
     ExpiredRefreshTokenError,
     InvalidRefreshTokenError,
@@ -15,10 +16,9 @@ from core.user.services.refresh_session import (
     RefreshTokenError,
 )
 from core.user.services.user import UserService
-from delivery.http.auth.jwt import AuthenticatedRequest, JWTAuth, JWTAuthFactory
+from delivery.http.auth.jwt import AuthenticatedRequest, JWTAuthFactory
 from delivery.http.services.request import RequestInfoService
 from delivery.http.services.throttler import IPThrottlerFactory, UserThrottlerFactory
-from delivery.services.jwt import JWTService
 from infrastructure.delivery.controllers import Controller
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,9 @@ class UserTokenController(Controller):
     _refresh_token_service: RefreshSessionService
     _user_service: UserService
 
-    _jwt_auth: JWTAuth = field(init=False)
-
     def __post_init__(self) -> None:
         self._jwt_auth = self._jwt_auth_factory()
+        super().__post_init__()
 
     def register(self, registry: APIRouter) -> None:
         registry.add_api_route(
@@ -186,11 +185,11 @@ class UserSchema(BaseModel):
 class UserController(Controller):
     _jwt_auth_factory: JWTAuthFactory
     _user_service: UserService
-    _jwt_auth: JWTAuth = field(init=False)
 
     def __post_init__(self) -> None:
         self._jwt_auth = self._jwt_auth_factory()
         self._staff_jwt_auth = self._jwt_auth_factory(require_staff=True)
+        super().__post_init__()
 
     def register(self, registry: APIRouter) -> None:
         registry.add_api_route(

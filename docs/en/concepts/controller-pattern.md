@@ -1,274 +1,181 @@
 # Controller Pattern
 
-Controllers are the entry points for handling requests in this template. They provide a unified interface for HTTP endpoints and Celery tasks while automatically handling exceptions.
+Controllers provide a unified pattern for handling requests from any source: HTTP, Celery, CLI, etc.
 
-## Two Base Classes
+## The Core Abstraction
 
-The template provides two abstract base classes depending on whether your handlers are synchronous or asynchronous:
-
-### Controller (Synchronous)
-
-Used for HTTP endpoints and Celery tasks:
+All controllers inherit from the base `Controller` class:
 
 ```python
+# src/infrastructure/delivery/controllers.py
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from fastapi import APIRouter, Request
-from infrastructure.delivery.controllers import Controller
+from typing import Any
+
 
 @dataclass
-class HealthController(Controller):
-    _health_service: HealthService
-
-    def register(self, registry: APIRouter) -> None:
-        registry.add_api_route(
-            path="/v1/health",
-            endpoint=self.health_check,
-            methods=["GET"],
-            response_model=HealthCheckResponseSchema,
-        )
-
-    def health_check(self) -> HealthCheckResponseSchema:
-        self._health_service.check_system_health()
-        return HealthCheckResponseSchema(status="ok")
-```
-
-## Automatic Exception Wrapping
-
-Both base classes use `__new__` to automatically wrap all public methods with exception handling:
-
-```python
 class Controller(ABC):
-    def __new__(cls, *_args: Any, **_kwargs: Any) -> Self:
-        self = super().__new__(cls)
-        _wrap_methods(self)  # Wraps all public methods
-        return self
+    @abstractmethod
+    def register(self, registry: Any) -> None:
+        """Register this controller with the appropriate registry."""
+        ...
+
+    def handle_exception(self, exception: Exception) -> Any:
+        """Handle exceptions raised by controller methods."""
+        raise exception
 ```
 
-This means every handler method is automatically wrapped in a try-except block that calls `handle_exception()`:
+## Key Features
+
+### 1. The `register()` Method
+
+Every controller implements `register()` to connect to its delivery mechanism:
 
 ```python
-# What you write:
-def health_check(self) -> HealthCheckResponseSchema:
-    self._health_service.check_system_health()
-    return HealthCheckResponseSchema(status="ok")
+# HTTP Controller
+def register(self, registry: APIRouter) -> None:
+    registry.add_api_route("/v1/users", self.list_users, methods=["GET"])
 
-# What actually executes:
-def health_check(self) -> HealthCheckResponseSchema:
-    try:
-        self._health_service.check_system_health()
-        return HealthCheckResponseSchema(status="ok")
-    except Exception as e:
-        return self.handle_exception(e)
+# Celery Task Controller
+def register(self, registry: Celery) -> None:
+    registry.task(name=TaskName.PING)(self.ping)
 ```
 
-## The register() Method
+### 2. Automatic Exception Handling
 
-Every controller must implement `register()`. This method connects the controller's handlers to the appropriate framework registry:
-
-```
-+----------------+     +----------------+     +----------------+
-|   Controller   |---->|    register()  |---->|    Registry    |
-+----------------+     +----------------+     +----------------+
-                              |
-                              v
-                       Connects handlers
-                       to framework
-```
-
-### HTTP Controllers
-
-Register handlers with a FastAPI APIRouter:
+The `__post_init__` method wraps all public methods with exception handling:
 
 ```python
-from dataclasses import dataclass, field
-from fastapi import APIRouter, Depends
-from delivery.http.auth.jwt import JWTAuth, JWTAuthFactory
+def __post_init__(self) -> None:
+    self._wrap_methods()
 
+def _wrap_methods(self) -> None:
+    for name in dir(self):
+        if name.startswith("_"):
+            continue
+        method = getattr(self, name)
+        if callable(method):
+            setattr(self, name, self._add_exception_handler(method))
+```
+
+This means every public method automatically goes through `handle_exception()` if it raises.
+
+### 3. Custom Exception Handling
+
+Override `handle_exception()` to map domain exceptions to responses:
+
+```python
+def handle_exception(self, exception: Exception) -> Any:
+    if isinstance(exception, TodoNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exception))
+    if isinstance(exception, TodoAccessDeniedError):
+        raise HTTPException(status_code=403, detail=str(exception))
+    return super().handle_exception(exception)
+```
+
+## TransactionController
+
+For database operations, use `TransactionController`:
+
+```python
+# src/infrastructure/delivery/controllers.py
 @dataclass
-class UserController(Controller):
+class TransactionController(Controller):
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self._wrap_with_transactions()
+
+    def _wrap_with_transactions(self) -> None:
+        for name in dir(self):
+            if name.startswith("_"):
+                continue
+            method = getattr(self, name)
+            if callable(method):
+                setattr(self, name, self._add_transaction(method))
+```
+
+This wraps methods with:
+
+- `@transaction.atomic` - Database transaction management
+- Logfire spans - Tracing with controller/method names
+
+## HTTP Controller Example
+
+```python
+# src/delivery/http/controllers/user/controllers.py
+from dataclasses import dataclass, field
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from core.user.services.user import UserService
+from delivery.http.auth.jwt import JWTAuth, JWTAuthFactory
+from infrastructure.delivery.controllers import TransactionController
+
+
+@dataclass(kw_only=True)
+class UserController(TransactionController):
+    """HTTP controller for user operations."""
+
+    _user_service: UserService
     _jwt_auth_factory: JWTAuthFactory
+
     _jwt_auth: JWTAuth = field(init=False)
 
     def __post_init__(self) -> None:
         self._jwt_auth = self._jwt_auth_factory()
+        super().__post_init__()
 
     def register(self, registry: APIRouter) -> None:
-        registry.add_api_route(
-            path="/v1/users/",
-            endpoint=self.create_user,
-            methods=["POST"],
-            response_model=UserSchema,
-        )
-
         registry.add_api_route(
             path="/v1/users/me",
-            endpoint=self.get_current_user,
+            endpoint=self.get_me,
             methods=["GET"],
             response_model=UserSchema,
             dependencies=[Depends(self._jwt_auth)],
         )
-```
 
-### Celery Task Controllers
+    def get_me(self, request: AuthenticatedRequest) -> UserSchema:
+        user = request.state.user
+        return UserSchema.model_validate(user, from_attributes=True)
 
-Register handlers with a Celery app:
-
-```python
-from delivery.tasks.registry import TaskName
-
-class PingTaskController(Controller):
-    def register(self, registry: Celery) -> None:
-        registry.task(name=TaskName.PING)(self.ping)
-
-    def ping(self) -> PingResult:
-        return PingResult(result="pong")
-```
-
-## Custom Exception Handling
-
-Override `handle_exception()` to convert domain exceptions into appropriate responses:
-
-```python
-from fastapi import HTTPException
-from http import HTTPStatus
-
-class UserTokenController(Controller):
     def handle_exception(self, exception: Exception) -> Any:
-        if isinstance(exception, InvalidRefreshTokenError):
+        if isinstance(exception, UserNotFoundError):
             raise HTTPException(
-                status_code=HTTPStatus.UNAUTHORIZED,
-                detail="Invalid refresh token",
-            ) from exception
-
-        if isinstance(exception, ExpiredRefreshTokenError):
-            raise HTTPException(
-                status_code=HTTPStatus.UNAUTHORIZED,
-                detail="Refresh token expired or revoked",
-            ) from exception
-
-        # Re-raise unknown exceptions
-        return super().handle_exception(exception)
-```
-
-!!! tip "Always Call Super"
-    End your `handle_exception()` method by calling `super().handle_exception(exception)` to re-raise unhandled exceptions.
-
-## Controller Structure
-
-A typical controller follows this structure:
-
-```python
-from dataclasses import dataclass, field
-from fastapi import APIRouter, Depends, HTTPException
-from http import HTTPStatus
-from delivery.http.auth.jwt import AuthenticatedRequest, JWTAuth, JWTAuthFactory
-
-@dataclass
-class ItemController(Controller):
-    # 1. Dependencies injected via dataclass fields
-    _jwt_auth_factory: JWTAuthFactory
-    _item_service: ItemService
-    _jwt_auth: JWTAuth = field(init=False)
-
-    def __post_init__(self) -> None:
-        self._jwt_auth = self._jwt_auth_factory()
-
-    # 2. Registration connects handlers to framework
-    def register(self, registry: APIRouter) -> None:
-        registry.add_api_route(
-            path="/v1/items",
-            endpoint=self.list_items,
-            methods=["GET"],
-            response_model=list[ItemSchema],
-            dependencies=[Depends(self._jwt_auth)],
-        )
-        registry.add_api_route(
-            path="/v1/items/{item_id}",
-            endpoint=self.get_item,
-            methods=["GET"],
-            response_model=ItemSchema,
-            dependencies=[Depends(self._jwt_auth)],
-        )
-
-    # 3. Handler methods implement business logic calls
-    def list_items(self, request: AuthenticatedRequest) -> list[ItemSchema]:
-        items = self._item_service.list_items()
-        return [ItemSchema.model_validate(item, from_attributes=True) for item in items]
-
-    def get_item(
-        self,
-        request: AuthenticatedRequest,
-        item_id: int,
-    ) -> ItemSchema:
-        item = self._item_service.get_item_by_id(item_id)
-        return ItemSchema.model_validate(item, from_attributes=True)
-
-    # 4. Exception handling converts domain errors to responses
-    def handle_exception(self, exception: Exception) -> Any:
-        if isinstance(exception, ItemNotFoundError):
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=str(exception),
             ) from exception
-
         return super().handle_exception(exception)
 ```
 
-## Method Wrapping Details
+### Key Patterns
 
-The wrapping logic excludes certain methods:
+1. **Dataclass with `kw_only=True`**: Explicit named parameters
+2. **Dependencies as fields**: `_user_service`, `_jwt_auth_factory`
+3. **Non-init fields**: `_jwt_auth = field(init=False)` for computed values
+4. **`__post_init__`**: Initialize computed fields, call `super().__post_init__()`
 
-```python
-_CONTROLLER_METHODS_EXCLUDE = ("register", "handle_exception")
-```
-
-Only public methods (not starting with `_`) that are not in the exclusion list get wrapped:
-
-| Method | Wrapped? |
-|--------|----------|
-| `health_check` | Yes |
-| `create_user` | Yes |
-| `register` | No (excluded) |
-| `handle_exception` | No (excluded) |
-| `_private_method` | No (private) |
-
-## Real-World Examples
-
-### HTTP Health Check Controller
+## Celery Task Controller Example
 
 ```python
+# src/delivery/tasks/tasks/ping.py
 from dataclasses import dataclass
-from fastapi import APIRouter, HTTPException, Request
-from http import HTTPStatus
+from typing import TypedDict
 
-@dataclass
-class HealthController(Controller):
-    _health_service: HealthService
+from celery import Celery
 
-    def register(self, registry: APIRouter) -> None:
-        registry.add_api_route(
-            path="/v1/health",
-            endpoint=self.health_check,
-            methods=["GET"],
-            response_model=HealthCheckResponseSchema,
-        )
+from delivery.tasks.registry import TaskName
+from infrastructure.delivery.controllers import Controller
 
-    def health_check(self) -> HealthCheckResponseSchema:
-        try:
-            self._health_service.check_system_health()
-        except HealthCheckError as e:
-            raise HTTPException(
-                status_code=HTTPStatus.SERVICE_UNAVAILABLE,
-                detail="Service is unavailable",
-            ) from e
 
-        return HealthCheckResponseSchema(status="ok")
-```
+class PingResult(TypedDict):
+    result: str
 
-### Celery Ping Task Controller
 
-```python
+@dataclass(kw_only=True)
 class PingTaskController(Controller):
+    """Task controller for ping operation."""
+
     def register(self, registry: Celery) -> None:
         registry.task(name=TaskName.PING)(self.ping)
 
@@ -276,31 +183,93 @@ class PingTaskController(Controller):
         return PingResult(result="pong")
 ```
 
-## Controller Registration in IoC
+## Sync vs Async Handlers
 
-Controllers are registered as singletons:
+### Prefer Sync Handlers
+
+FastAPI runs sync handlers in a thread pool automatically:
 
 ```python
-# ioc/registries/delivery.py
-def _register_http_controllers(container: Container) -> None:
-    container.register(HealthController, scope=Scope.singleton)
-    container.register(UserController, scope=Scope.singleton)
-    container.register(UserTokenController, scope=Scope.singleton)
+# ✅ Recommended - sync handler
+def get_user(self, request: AuthenticatedRequest, user_id: int) -> UserSchema:
+    user = self._user_service.get_user_by_id(user_id)
+    return UserSchema.model_validate(user, from_attributes=True)
+```
 
-def _register_celery_controllers(container: Container) -> None:
-    container.register(PingTaskController, scope=Scope.singleton)
+### Async When Needed
+
+For truly async operations (external APIs, etc.):
+
+```python
+from asgiref.sync import sync_to_async
+
+async def get_user_async(self, request: AuthenticatedRequest, user_id: int) -> UserSchema:
+    user = await sync_to_async(
+        self._user_service.get_user_by_id,
+        thread_sensitive=False,  # Read-only = parallel OK
+    )(user_id)
+    return UserSchema.model_validate(user, from_attributes=True)
+```
+
+Thread sensitivity:
+
+| `thread_sensitive` | Use Case |
+|-------------------|----------|
+| `False` | Read-only operations (SELECT) |
+| `True` | Write operations (INSERT/UPDATE/DELETE) |
+
+## Controller Registration
+
+Controllers are registered in the factory:
+
+```python
+# src/delivery/http/factories.py
+class FastAPIFactory:
+    def _register_controllers(self, router: APIRouter) -> None:
+        self._container.resolve(HealthController).register(router)
+        self._container.resolve(UserController).register(router)
+        self._container.resolve(UserTokenController).register(router)
+        self._container.resolve(TodoController).register(router)
+```
+
+## Benefits
+
+### 1. Consistent Pattern
+
+Same structure for HTTP and Celery:
+
+```python
+# Both have:
+# - Dependencies as fields
+# - register() method
+# - handle_exception() for errors
+```
+
+### 2. Automatic Tracing
+
+`TransactionController` adds Logfire spans automatically.
+
+### 3. Exception Isolation
+
+Exceptions are caught and handled uniformly.
+
+### 4. Easy Testing
+
+Mock dependencies, test business logic:
+
+```python
+def test_get_user():
+    mock_service = MagicMock()
+    controller = UserController(_user_service=mock_service, ...)
+    # Test controller methods directly
 ```
 
 ## Summary
 
-The Controller pattern provides:
+The controller pattern:
 
-| Feature | Benefit |
-|---------|---------|
-| Automatic exception wrapping | Consistent error handling without boilerplate |
-| Abstract `register()` | Unified interface across frameworks |
-| Sync and async variants | Support for all entry points |
-| Dependency injection | Loose coupling, testability |
-| `handle_exception()` override | Customizable error responses |
-
-Controllers serve as the bridge between external frameworks and your application's services. They handle framework-specific concerns while delegating business logic to the service layer.
+- **Unifies** request handling across HTTP and Celery
+- **Enforces** consistent structure via `register()`
+- **Wraps** methods with exception handling
+- **Provides** `TransactionController` for database operations
+- **Enables** easy testing through dependency injection

@@ -5,7 +5,7 @@ from celery.signals import beat_init, worker_init
 
 from configs.application import ApplicationSettings
 from infrastructure.delivery.controllers import Controller
-from infrastructure.telemetry.configurator import LogfireConfigurator
+from infrastructure.frameworks.logfire.configurator import LogfireConfigurator
 
 
 @dataclass(kw_only=True)

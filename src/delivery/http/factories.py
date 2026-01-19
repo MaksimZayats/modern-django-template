@@ -12,9 +12,9 @@ from delivery.http.controllers.health.controllers import HealthController
 from delivery.http.controllers.user.controllers import UserController, UserTokenController
 from delivery.http.django.factories import DjangoWSGIFactory
 from delivery.http.settings import CORSSettings, HTTPSettings
-from infrastructure.anyio.configurator import AnyIOConfigurator
-from infrastructure.telemetry.configurator import LogfireConfigurator
-from infrastructure.telemetry.instrumentor import OpenTelemetryInstrumentor
+from infrastructure.frameworks.anyio.configurator import AnyIOConfigurator
+from infrastructure.frameworks.logfire.configurator import LogfireConfigurator
+from infrastructure.frameworks.logfire.instrumentor import OpenTelemetryInstrumentor
 
 
 @dataclass(kw_only=True)

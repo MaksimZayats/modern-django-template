@@ -1,8 +1,8 @@
 import pytest
 from throttled.asyncio import MemoryStore
 
-from infrastructure.punq.container import AutoRegisteringContainer
-from infrastructure.throttler.throttler import AsyncThrottlerStoreFactory
+from infrastructure.frameworks.punq.auto_registering import AutoRegisteringContainer
+from infrastructure.frameworks.throttled.throttler import AsyncThrottlerStoreFactory
 from ioc.container import ContainerFactory
 from tests.integration.factories import (
     TestCeleryWorkerFactory,

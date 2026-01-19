@@ -9,7 +9,7 @@ from throttled.asyncio import (
     Throttled as AsyncThrottled,
 )
 
-from infrastructure.redis.settings import RedisSettings
+from infrastructure.adapters.redis.settings import RedisSettings
 
 
 @dataclass(kw_only=True)

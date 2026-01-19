@@ -5,7 +5,7 @@ import pytest
 
 from core.health.services import HealthCheckError, HealthService
 from delivery.http.controllers.health.controllers import HealthCheckResponseSchema
-from infrastructure.punq.container import AutoRegisteringContainer
+from infrastructure.frameworks.punq.auto_registering import AutoRegisteringContainer
 from tests.integration.factories import TestClientFactory
 
 

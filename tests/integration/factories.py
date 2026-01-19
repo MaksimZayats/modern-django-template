@@ -11,7 +11,7 @@ from core.user.services.jwt import JWTService
 from delivery.http.factories import FastAPIFactory
 from delivery.tasks.factories import CeleryAppFactory, TasksRegistryFactory
 from delivery.tasks.registry import TasksRegistry
-from infrastructure.punq.container import AutoRegisteringContainer
+from infrastructure.frameworks.punq.auto_registering import AutoRegisteringContainer
 
 
 class BaseFactory(ABC):

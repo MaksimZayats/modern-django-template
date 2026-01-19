@@ -6,7 +6,7 @@ from logfire.integrations.psycopg import CommenterOptions
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from infrastructure.telemetry.configurator import LogfireSettings
+from infrastructure.frameworks.logfire.configurator import LogfireSettings
 
 
 class InstrumentorSettings(BaseSettings):

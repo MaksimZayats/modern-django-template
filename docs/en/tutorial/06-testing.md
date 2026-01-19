@@ -54,7 +54,7 @@ from delivery.http.factories import FastAPIFactory
 from core.user.services.jwt import JWTService
 from delivery.tasks.factories import CeleryAppFactory, TasksRegistryFactory
 from delivery.tasks.registry import TasksRegistry
-from infrastructure.punq.container import AutoRegisteringContainer
+from infrastructure.frameworks.punq import AutoRegisteringContainer
 
 
 class BaseFactory(ABC):
@@ -165,7 +165,7 @@ Add the fixture to `tests/integration/conftest.py`.
 ```python title="tests/integration/conftest.py" hl_lines="3-4 14-16 41-46"
 import pytest
 
-from infrastructure.punq.container import AutoRegisteringContainer
+from infrastructure.frameworks.punq import AutoRegisteringContainer
 from ioc.container import ContainerFactory
 from tests.integration.factories import (
     TestCeleryWorkerFactory,
@@ -192,8 +192,8 @@ def test_client_factory(container: AutoRegisteringContainer) -> TestClientFactor
 
 @pytest.fixture(scope="function")
 def user_factory(
-    transactional_db: None,
-    container: AutoRegisteringContainer,
+        transactional_db: None,
+        container: AutoRegisteringContainer,
 ) -> TestUserFactory:
     return TestUserFactory(container=container)
 
@@ -210,11 +210,10 @@ def tasks_registry_factory(container: AutoRegisteringContainer) -> TestTasksRegi
 
 @pytest.fixture(scope="function")
 def todo_factory(
-    transactional_db: None,
-    container: AutoRegisteringContainer,
+        transactional_db: None,
+        container: AutoRegisteringContainer,
 ) -> TestTodoFactory:
     return TestTodoFactory(container=container)
-
 
 # endregion Factories
 ```
@@ -550,7 +549,7 @@ import pytest
 
 from core.todo.services import TodoNotFoundError, TodoService
 from core.user.models import User
-from infrastructure.punq.container import AutoRegisteringContainer
+from infrastructure.frameworks.punq import AutoRegisteringContainer
 from tests.integration.factories import TestClientFactory, TestUserFactory
 
 
@@ -564,9 +563,9 @@ class TestTodoControllerWithMockedService:
 
     @pytest.mark.django_db(transaction=True)
     def test_get_todo_handles_service_exception(
-        self,
-        container: AutoRegisteringContainer,
-        user: User,
+            self,
+            container: AutoRegisteringContainer,
+            user: User,
     ) -> None:
         # Create a mock service that raises an exception
         mock_service = MagicMock(spec=TodoService)
@@ -585,9 +584,9 @@ class TestTodoControllerWithMockedService:
 
     @pytest.mark.django_db(transaction=True)
     def test_list_todos_with_custom_mock_data(
-        self,
-        container: AutoRegisteringContainer,
-        user: User,
+            self,
+            container: AutoRegisteringContainer,
+            user: User,
     ) -> None:
         # Create a mock that returns specific test data
         mock_todo = MagicMock()

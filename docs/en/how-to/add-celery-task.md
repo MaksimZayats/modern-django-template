@@ -88,7 +88,7 @@ from typing import TYPE_CHECKING
 
 from celery import Task
 
-from infrastructure.celery.registry import BaseTasksRegistry
+from infrastructure.frameworks.celery import BaseTasksRegistry
 
 if TYPE_CHECKING:
     from delivery.tasks.tasks.ping import PingResult

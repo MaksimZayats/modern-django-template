@@ -6,7 +6,7 @@ from configs.application import ApplicationSettings
 from delivery.tasks.registry import TaskName, TasksRegistry
 from delivery.tasks.settings import CelerySettings
 from delivery.tasks.tasks.ping import PingTaskController
-from infrastructure.redis.settings import RedisSettings
+from infrastructure.adapters.redis.settings import RedisSettings
 
 
 @dataclass(kw_only=True)

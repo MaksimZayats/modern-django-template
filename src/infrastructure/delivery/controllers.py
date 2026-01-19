@@ -4,9 +4,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any
 
-from infrastructure.telemetry.transaction import traced_atomic
-
-_CONTROLLER_METHODS_EXCLUDE = ("register", "handle_exception")
+from infrastructure.frameworks.logfire.transaction import traced_atomic
 
 
 @dataclass(kw_only=True)
@@ -28,7 +26,7 @@ class Controller(ABC):
                 callable(attr)
                 and not hasattr(Controller, attr_name)
                 and not attr_name.startswith("_")
-                and attr_name not in _CONTROLLER_METHODS_EXCLUDE
+                and attr_name not in dir(Controller)
             ):
                 setattr(self, attr_name, self._wrap_route(attr))
 

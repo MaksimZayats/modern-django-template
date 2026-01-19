@@ -11,7 +11,7 @@ from throttled.asyncio import Quota, RateLimiterType, Throttled
 
 from delivery.http.auth.jwt import AuthenticatedRequest
 from delivery.http.services.request import RequestInfoService
-from infrastructure.throttler.throttler import AsyncThrottlerFactory
+from infrastructure.frameworks.throttled.throttler import AsyncThrottlerFactory
 
 logger = logging.getLogger(__name__)
 

@@ -109,7 +109,7 @@ omit = [
     # Django admin (requires manual testing)
     "src/**/admin.py",
     # Observability/telemetry (requires external services)
-    "src/infrastructure/telemetry/*",
+    "src/**/logfire/**",
     # Celery event handlers (signal-based, hard to test in isolation)
     "src/delivery/tasks/events.py",
 ]

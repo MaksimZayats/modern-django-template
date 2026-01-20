@@ -62,38 +62,36 @@ class JWTAuthFactory:
 @dataclass(kw_only=True)
 class UserController(TransactionController):
     _jwt_auth_factory: JWTAuthFactory
-
-    _jwt_auth: JWTAuth = field(init=False)
-    _staff_auth: JWTAuth = field(init=False)
-    _superuser_auth: JWTAuth = field(init=False)
+    _user_service: UserService
 
     def __post_init__(self) -> None:
         # Create different auth configurations
         self._jwt_auth = self._jwt_auth_factory()
-        self._staff_auth = self._jwt_auth_factory(require_staff=True)
-        self._superuser_auth = self._jwt_auth_factory(require_superuser=True)
+        self._staff_jwt_auth = self._jwt_auth_factory(require_staff=True)
         super().__post_init__()
 
     def register(self, registry: APIRouter) -> None:
         # Public endpoint (no auth)
-        registry.add_api_route("/v1/users", self.create_user, methods=["POST"])
+        registry.add_api_route("/v1/users/", self.create_user, methods=["POST"])
 
         # Authenticated endpoint
         registry.add_api_route(
             "/v1/users/me",
-            self.get_me,
+            self.get_current_user,
             methods=["GET"],
             dependencies=[Depends(self._jwt_auth)],
         )
 
         # Staff-only endpoint
         registry.add_api_route(
-            "/v1/admin/users",
-            self.list_all_users,
+            "/v1/users/{user_id}",
+            self.get_user_by_id,
             methods=["GET"],
-            dependencies=[Depends(self._staff_auth)],
+            dependencies=[Depends(self._staff_jwt_auth)],
         )
 ```
+
+Auth dependencies are created in `__post_init__` and stored as instance attributes (no `field(init=False)` needed).
 
 ## FastAPIFactory Example
 
@@ -103,39 +101,53 @@ The `FastAPIFactory` creates the entire FastAPI application:
 # src/delivery/http/factories.py
 @dataclass(kw_only=True)
 class FastAPIFactory:
-    """Factory for creating FastAPI applications."""
-
-    _container: AutoRegisteringContainer
     _application_settings: ApplicationSettings
     _http_settings: HTTPSettings
     _cors_settings: CORSSettings
+
     _lifespan: Lifespan
-    _instrumentor: OpenTelemetryInstrumentor
+    _telemetry_instrumentor: OpenTelemetryInstrumentor
+    _django_wsgi_factory: DjangoWSGIFactory
 
-    def __call__(self, include_django: bool = True) -> FastAPI:
-        """Create a FastAPI application.
+    # Controllers are injected as fields
+    _health_controller: HealthController
+    _user_token_controller: UserTokenController
+    _user_controller: UserController
 
-        Args:
-            include_django: Whether to mount Django WSGI app
-
-        Returns:
-            Configured FastAPI application
-        """
-        app = FastAPI(
-            title="Fast Django",
-            version=self._application_settings.version,
-            lifespan=self._lifespan,
-            docs_url=self._get_docs_url(),
+    def __call__(
+        self,
+        *,
+        include_django: bool = True,
+        add_trusted_hosts_middleware: bool = True,
+        add_cors_middleware: bool = True,
+    ) -> FastAPI:
+        docs_url = (
+            "/docs" if self._application_settings.environment != Environment.PRODUCTION else None
         )
 
-        self._instrumentor.instrument_fastapi(app)
-        self._add_middleware(app)
-        self._register_controllers(app.router)
+        app = FastAPI(
+            title="API",
+            lifespan=self._lifespan,
+            docs_url=docs_url,
+            redoc_url=None,
+        )
+
+        self._telemetry_instrumentor.instrument_fastapi(app=app)
+        self._add_middlewares(app=app, ...)
+        self._register_controllers(app=app)
 
         if include_django:
-            self._mount_django(app)
+            django_wsgi = self._django_wsgi_factory()
+            app.mount("/django", WSGIMiddleware(django_wsgi))
 
         return app
+
+    def _register_controllers(self, app: FastAPI) -> None:
+        health_router = APIRouter(tags=["health"])
+        self._health_controller.register(health_router)
+        app.include_router(health_router)
+
+        # ... more controllers
 ```
 
 ## ContainerBasedFactory

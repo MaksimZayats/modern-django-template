@@ -25,9 +25,9 @@ Protect endpoints with JWT authentication and role-based access control.
 ### 1. Inject the Factory
 
 ```python
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from delivery.http.auth.jwt import JWTAuth, JWTAuthFactory
+from delivery.http.auth.jwt import JWTAuthFactory
 
 
 @dataclass(kw_only=True)
@@ -35,10 +35,7 @@ class ProductController(TransactionController):
     _product_service: ProductService
     _jwt_auth_factory: JWTAuthFactory
 
-    # Non-init fields for auth dependencies
-    _jwt_auth: JWTAuth = field(init=False)
-    _staff_auth: JWTAuth = field(init=False)
-    _superuser_auth: JWTAuth = field(init=False)
+    # Auth dependencies are created in __post_init__
 ```
 
 ### 2. Create Auth Dependencies in `__post_init__`
@@ -107,7 +104,7 @@ def list_favorites(self, request: AuthenticatedRequest) -> list[ProductSchema]:
 
 ```python
 # src/delivery/http/controllers/product/controllers.py
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -115,7 +112,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from core.product.services import ProductNotFoundError, ProductService
 from delivery.http.auth.jwt import (
     AuthenticatedRequest,
-    JWTAuth,
     JWTAuthFactory,
 )
 from delivery.http.controllers.product.schemas import (
@@ -129,9 +125,6 @@ from infrastructure.delivery.controllers import TransactionController
 class ProductController(TransactionController):
     _product_service: ProductService
     _jwt_auth_factory: JWTAuthFactory
-
-    _jwt_auth: JWTAuth = field(init=False)
-    _staff_auth: JWTAuth = field(init=False)
 
     def __post_init__(self) -> None:
         self._jwt_auth = self._jwt_auth_factory()

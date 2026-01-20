@@ -88,6 +88,32 @@ class TodoService:
         return Todo.objects.create(user=user, title=title)
 ```
 
+### Return Value Patterns
+
+Services can use two patterns for "not found" scenarios:
+
+=== "Exception pattern"
+    ```python
+    def get_todo_by_id(self, todo_id: int) -> Todo:
+        try:
+            return Todo.objects.get(id=todo_id)
+        except Todo.DoesNotExist as e:
+            raise TodoNotFoundError(f"Todo {todo_id} not found") from e
+    ```
+    - Use when the item should exist (e.g., accessing a known resource)
+    - Controller's `handle_exception()` maps to HTTP 404
+
+=== "None pattern"
+    ```python
+    def get_user_by_id(self, user_id: int) -> User | None:
+        return User.objects.filter(id=user_id).first()
+    ```
+    - Use when absence is a normal case (e.g., lookup by credentials)
+    - Controller explicitly checks for `None` and responds accordingly
+
+!!! tip "Choosing a pattern"
+    The existing `UserService` uses the **None pattern** because user lookups often occur during authentication where "not found" is expected. Choose the pattern that fits your domain semantics.
+
 ## Benefits
 
 ### 1. Testability

@@ -159,13 +159,13 @@ Create `src/delivery/http/controllers/product/controllers.py`:
 
 ```python
 # src/delivery/http/controllers/product/controllers.py
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from core.product.services import ProductNotFoundError, ProductService
-from delivery.http.auth.jwt import JWTAuth, JWTAuthFactory
+from delivery.http.auth.jwt import JWTAuthFactory
 from delivery.http.controllers.product.schemas import (
     CreateProductRequestSchema,
     ProductSchema,
@@ -177,8 +177,6 @@ from infrastructure.delivery.controllers import TransactionController
 class ProductController(TransactionController):
     _product_service: ProductService
     _jwt_auth_factory: JWTAuthFactory
-
-    _staff_auth: JWTAuth = field(init=False)
 
     def __post_init__(self) -> None:
         self._staff_auth = self._jwt_auth_factory(require_staff=True)
@@ -239,14 +237,25 @@ class ProductController(TransactionController):
 Edit `src/delivery/http/factories.py`:
 
 ```python
-# Add import
+# Add import at the top
 from delivery.http.controllers.product.controllers import ProductController
 
-# In _register_controllers method
-def _register_controllers(self, router: APIRouter) -> None:
-    # ... existing controllers ...
-    self._container.resolve(ProductController).register(router)
+
+@dataclass(kw_only=True)
+class FastAPIFactory:
+    # ... existing controller fields ...
+    _product_controller: ProductController  # Add this field
+
+    def _register_controllers(self, app: FastAPI) -> None:
+        # ... existing controller registrations ...
+
+        # Register ProductController
+        product_router = APIRouter(tags=["product"])
+        self._product_controller.register(product_router)
+        app.include_router(product_router)
 ```
+
+The controller is declared as a dataclass field and auto-resolved by the IoC container.
 
 ### 9. Create Admin
 

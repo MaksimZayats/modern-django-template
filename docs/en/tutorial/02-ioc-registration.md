@@ -28,16 +28,42 @@ The container is created in `src/ioc/container.py`:
 
 ```python
 # src/ioc/container.py
-from infrastructure.frameworks.punq.auto_registering import AutoRegisteringContainer
-
-
 class ContainerFactory:
-    def __call__(self) -> AutoRegisteringContainer:
+    def __call__(
+        self,
+        *,
+        configure_django: bool = True,
+        configure_logging: bool = True,
+        instrument_libraries: bool = True,
+    ) -> AutoRegisteringContainer:
         container = AutoRegisteringContainer()
-        # Configure Django, logging, etc.
-        # Register special cases
+
+        if configure_django:
+            self._configure_django(container)
+
+        if configure_logging:
+            self._configure_logging(container)
+
+        if instrument_libraries:
+            self._instrument_libraries(container)
+
+        self._register(container)
+
         return container
+
+    def _configure_django(self, container: AutoRegisteringContainer) -> None:
+        configurator = container.resolve(DjangoConfigurator)
+        configurator.configure(django_settings_module="configs.django")
+
+    def _register(self, container: AutoRegisteringContainer) -> None:
+        from ioc.registries import Registry
+
+        registry = container.resolve(Registry)
+        registry.register(container)
 ```
+
+!!! note
+    Configuration classes like `DjangoConfigurator` are resolved from the container, ensuring their dependencies are properly injected.
 
 ### Step 2: Auto-Registration Logic
 
@@ -117,9 +143,14 @@ When resolving by string instead of type:
 
 ```python
 # src/ioc/registries.py
+from punq import Container, Scope
+
+from delivery.http.factories import FastAPIFactory
+
+
 class Registry:
     def register(self, container: Container) -> None:
-        # Register FastAPIFactory with string key
+        # Using string-based registration to avoid loading django-related code too early
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
@@ -134,17 +165,17 @@ Usage:
 factory = container.resolve("FastAPIFactory")
 ```
 
-### Protocol Mappings
+### Protocol Mappings (Example)
 
 When an interface should map to a concrete implementation:
 
 ```python
-# src/ioc/registries.py
+# Example pattern - not currently used in this codebase
 class Registry:
     def register(self, container: Container) -> None:
         container.register(
-            ApplicationSettingsProtocol,
-            factory=lambda: container.resolve(ApplicationSettings),
+            MyProtocol,
+            factory=lambda: container.resolve(ConcreteImplementation),
             scope=Scope.singleton,
         )
 ```

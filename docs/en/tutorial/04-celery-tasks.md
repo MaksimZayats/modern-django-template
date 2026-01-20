@@ -126,13 +126,28 @@ Modify `src/delivery/tasks/factories.py` to register the new task controller:
 # Add this import at the top
 from delivery.tasks.tasks.todo_cleanup import TodoCleanupTaskController
 
-# In TasksRegistryFactory._register_tasks, add:
-def _register_tasks(self, celery_app: Celery) -> None:
-    # ... existing task registrations ...
 
-    # Register TodoCleanupTaskController
-    self._container.resolve(TodoCleanupTaskController).register(celery_app)
+@dataclass(kw_only=True)
+class TasksRegistryFactory:
+    _celery_app_factory: CeleryAppFactory
+    _ping_controller: PingTaskController
+    _todo_cleanup_controller: TodoCleanupTaskController  # Add this field
+    _instance: TasksRegistry | None = field(default=None, init=False)
+
+    def __call__(self) -> TasksRegistry:
+        if self._instance is not None:
+            return self._instance
+
+        celery_app = self._celery_app_factory()
+        registry = TasksRegistry(_celery_app=celery_app)
+        self._ping_controller.register(celery_app)
+        self._todo_cleanup_controller.register(celery_app)  # Register it
+
+        self._instance = registry
+        return self._instance
 ```
+
+Controllers are declared as dataclass fields and auto-resolved by the IoC container.
 
 ## Step 5: Schedule the Task (Optional)
 
@@ -176,6 +191,9 @@ class MyTaskController(Controller):
         # Task logic here
         return {"status": "done"}
 ```
+
+!!! note "Dataclass decorator"
+    Add `@dataclass(kw_only=True)` only when your controller has dependencies to inject. Simple controllers without dependencies (like `PingTaskController`) don't need it because they inherit from the base `Controller` class which already uses `@dataclass(kw_only=True)`.
 
 ### Task Naming Convention
 

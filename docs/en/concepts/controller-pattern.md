@@ -13,8 +13,11 @@ from dataclasses import dataclass
 from typing import Any
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Controller(ABC):
+    def __post_init__(self) -> None:
+        self._wrap_methods()
+
     @abstractmethod
     def register(self, registry: Any) -> None:
         """Register this controller with the appropriate registry."""
@@ -50,12 +53,19 @@ def __post_init__(self) -> None:
     self._wrap_methods()
 
 def _wrap_methods(self) -> None:
-    for name in dir(self):
-        if name.startswith("_"):
-            continue
-        method = getattr(self, name)
-        if callable(method):
-            setattr(self, name, self._add_exception_handler(method))
+    for attr_name in dir(self):
+        attr = getattr(self, attr_name)
+
+        if (
+            callable(attr)
+            and not hasattr(Controller, attr_name)
+            and not attr_name.startswith("_")
+            and attr_name not in dir(Controller)
+        ):
+            setattr(self, attr_name, self._wrap_route(attr))
+
+def _wrap_route(self, method: Callable[..., Any]) -> Callable[..., Any]:
+    return self._add_exception_handler(method)
 ```
 
 This means every public method automatically goes through `handle_exception()` if it raises.
@@ -79,37 +89,44 @@ For database operations, use `TransactionController`:
 
 ```python
 # src/infrastructure/delivery/controllers.py
-@dataclass
-class TransactionController(Controller):
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self._wrap_with_transactions()
+from infrastructure.frameworks.logfire.transaction import traced_atomic
 
-    def _wrap_with_transactions(self) -> None:
-        for name in dir(self):
-            if name.startswith("_"):
-                continue
-            method = getattr(self, name)
-            if callable(method):
-                setattr(self, name, self._add_transaction(method))
+
+@dataclass(kw_only=True)
+class TransactionController(Controller, ABC):
+    def _wrap_route(self, method: Callable[..., Any]) -> Callable[..., Any]:
+        method = self._add_transaction(method)
+        return super()._wrap_route(method)
+
+    def _add_transaction(self, method: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(method)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            with traced_atomic(
+                "controller transaction",
+                controller=type(self).__name__,
+                method=method.__name__,
+            ):
+                return method(*args, **kwargs)
+
+        return wrapper
 ```
 
 This wraps methods with:
 
-- `@transaction.atomic` - Database transaction management
-- Logfire spans - Tracing with controller/method names
+- `traced_atomic` - Combined database transaction and Logfire tracing
+- Controller and method names as span attributes
 
 ## HTTP Controller Example
 
 ```python
 # src/delivery/http/controllers/user/controllers.py
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from core.user.services.user import UserService
-from delivery.http.auth.jwt import JWTAuth, JWTAuthFactory
+from delivery.http.auth.jwt import AuthenticatedRequest, JWTAuthFactory
 from infrastructure.delivery.controllers import TransactionController
 
 
@@ -117,27 +134,25 @@ from infrastructure.delivery.controllers import TransactionController
 class UserController(TransactionController):
     """HTTP controller for user operations."""
 
-    _user_service: UserService
     _jwt_auth_factory: JWTAuthFactory
-
-    _jwt_auth: JWTAuth = field(init=False)
+    _user_service: UserService
 
     def __post_init__(self) -> None:
         self._jwt_auth = self._jwt_auth_factory()
+        self._staff_jwt_auth = self._jwt_auth_factory(require_staff=True)
         super().__post_init__()
 
     def register(self, registry: APIRouter) -> None:
         registry.add_api_route(
             path="/v1/users/me",
-            endpoint=self.get_me,
+            endpoint=self.get_current_user,
             methods=["GET"],
             response_model=UserSchema,
             dependencies=[Depends(self._jwt_auth)],
         )
 
-    def get_me(self, request: AuthenticatedRequest) -> UserSchema:
-        user = request.state.user
-        return UserSchema.model_validate(user, from_attributes=True)
+    def get_current_user(self, request: AuthenticatedRequest) -> UserSchema:
+        return UserSchema.model_validate(request.state.user, from_attributes=True)
 
     def handle_exception(self, exception: Exception) -> Any:
         if isinstance(exception, UserNotFoundError):
@@ -152,15 +167,14 @@ class UserController(TransactionController):
 
 1. **Dataclass with `kw_only=True`**: Explicit named parameters
 2. **Dependencies as fields**: `_user_service`, `_jwt_auth_factory`
-3. **Non-init fields**: `_jwt_auth = field(init=False)` for computed values
-4. **`__post_init__`**: Initialize computed fields, call `super().__post_init__()`
+3. **Computed values in `__post_init__`**: Create auth dependencies at initialization
+4. **`__post_init__`**: Initialize auth dependencies, then call `super().__post_init__()`
 
 ## Celery Task Controller Example
 
 ```python
 # src/delivery/tasks/tasks/ping.py
-from dataclasses import dataclass
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from celery import Celery
 
@@ -169,12 +183,11 @@ from infrastructure.delivery.controllers import Controller
 
 
 class PingResult(TypedDict):
-    result: str
+    result: Literal["pong"]
 
 
-@dataclass(kw_only=True)
 class PingTaskController(Controller):
-    """Task controller for ping operation."""
+    """Simple task controller with no dependencies."""
 
     def register(self, registry: Celery) -> None:
         registry.task(name=TaskName.PING)(self.ping)
@@ -182,6 +195,9 @@ class PingTaskController(Controller):
     def ping(self) -> PingResult:
         return PingResult(result="pong")
 ```
+
+!!! note "Dataclass decorator"
+    Controllers without dependencies don't need the `@dataclass` decorator. The base `Controller` class already uses `@dataclass(kw_only=True)`, so subclasses inherit that behavior. Only add `@dataclass(kw_only=True)` when you have dependency fields to inject.
 
 ## Sync vs Async Handlers
 
@@ -220,17 +236,34 @@ Thread sensitivity:
 
 ## Controller Registration
 
-Controllers are registered in the factory:
+Controllers are injected as fields into the factory and registered with tagged routers:
 
 ```python
 # src/delivery/http/factories.py
+@dataclass(kw_only=True)
 class FastAPIFactory:
-    def _register_controllers(self, router: APIRouter) -> None:
-        self._container.resolve(HealthController).register(router)
-        self._container.resolve(UserController).register(router)
-        self._container.resolve(UserTokenController).register(router)
-        self._container.resolve(TodoController).register(router)
+    # Controllers are injected as fields (auto-resolved by IoC)
+    _health_controller: HealthController
+    _user_token_controller: UserTokenController
+    _user_controller: UserController
+
+    def _register_controllers(self, app: FastAPI) -> None:
+        # Create routers with tags for OpenAPI grouping
+        health_router = APIRouter(tags=["health"])
+        self._health_controller.register(health_router)
+        app.include_router(health_router)
+
+        user_token_router = APIRouter(tags=["user", "token"])
+        self._user_token_controller.register(user_token_router)
+        app.include_router(user_token_router)
+
+        user_router = APIRouter(tags=["user"])
+        self._user_controller.register(user_router)
+        app.include_router(user_router)
 ```
+
+!!! tip "Controller injection"
+    Controllers are declared as dataclass fields and auto-resolved by the IoC container when `FastAPIFactory` is resolved. This ensures all controller dependencies are properly injected.
 
 ## Benefits
 

@@ -112,28 +112,45 @@ The `ContainerFactory` creates configured containers:
 class ContainerFactory:
     def __call__(
         self,
+        *,
         configure_django: bool = True,
         configure_logging: bool = True,
         instrument_libraries: bool = True,
     ) -> AutoRegisteringContainer:
         container = AutoRegisteringContainer()
 
-        # Configure Django before any model imports
+        # It's required to configure Django before any registrations due to model imports
         if configure_django:
-            DjangoConfigurator().configure()
+            self._configure_django(container)
 
-        # Configure logging
         if configure_logging:
-            LogfireConfigurator(container).configure()
+            self._configure_logging(container)
 
-        # Instrument libraries for tracing
         if instrument_libraries:
-            container.resolve(OpenTelemetryInstrumentor).instrument()
+            self._instrument_libraries(container)
 
-        # Register explicit cases
-        Registry().register(container)
+        self._register(container)
 
         return container
+
+    def _configure_django(self, container: AutoRegisteringContainer) -> None:
+        configurator = container.resolve(DjangoConfigurator)
+        configurator.configure(django_settings_module="configs.django")
+
+    def _configure_logging(self, container: AutoRegisteringContainer) -> None:
+        configurator = container.resolve(LoggingConfigurator)
+        configurator.configure()
+
+    def _instrument_libraries(self, container: AutoRegisteringContainer) -> None:
+        instrumentor = container.resolve(OpenTelemetryInstrumentor)
+        instrumentor.instrument_libraries()
+
+    def _register(self, container: AutoRegisteringContainer) -> None:
+        # Import registry functions here to avoid imports before setting up Django
+        from ioc.registries import Registry
+
+        registry = container.resolve(Registry)
+        registry.register(container)
 ```
 
 Usage:
@@ -142,6 +159,9 @@ Usage:
 container_factory = ContainerFactory()
 container = container_factory()  # Fully configured container
 ```
+
+!!! note "Auto-resolved configurators"
+    Notice that configurators like `DjangoConfigurator` and `LoggingConfigurator` are resolved from the container. This ensures their dependencies (like settings classes) are properly injected.
 
 ## Explicit Registration
 
@@ -153,31 +173,44 @@ When resolving by string instead of type:
 
 ```python
 # src/ioc/registries.py
+from punq import Container, Scope
+
+from delivery.http.factories import FastAPIFactory
+
+
 class Registry:
     def register(self, container: Container) -> None:
+        # Using string-based registration to avoid loading django-related code too early
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
             scope=Scope.singleton,
         )
+```
 
-# Usage
+Usage:
+
+```python
 factory = container.resolve("FastAPIFactory")
 ```
 
-### Protocol Mappings
+### Protocol Mappings (Example Pattern)
 
 When an interface should resolve to a concrete implementation:
 
 ```python
+# Example - not in current codebase
 class Registry:
     def register(self, container: Container) -> None:
         container.register(
-            ApplicationSettingsProtocol,
-            factory=lambda: container.resolve(ApplicationSettings),
+            SettingsProtocol,
+            factory=lambda: container.resolve(ConcreteSettings),
             scope=Scope.singleton,
         )
 ```
+
+!!! note
+    The current codebase only uses string-based registration for `FastAPIFactory`. Protocol mappings shown above are an example pattern you might use when abstracting interfaces.
 
 ## Scopes
 

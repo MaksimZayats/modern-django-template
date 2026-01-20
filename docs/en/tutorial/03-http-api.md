@@ -87,7 +87,7 @@ Create `src/delivery/http/controllers/todo/controllers.py`:
 
 ```python
 # src/delivery/http/controllers/todo/controllers.py
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -99,7 +99,6 @@ from core.todo.services import (
 )
 from delivery.http.auth.jwt import (
     AuthenticatedRequest,
-    JWTAuth,
     JWTAuthFactory,
 )
 from delivery.http.controllers.todo.schemas import (
@@ -117,8 +116,6 @@ class TodoController(TransactionController):
 
     _todo_service: TodoService
     _jwt_auth_factory: JWTAuthFactory
-
-    _jwt_auth: JWTAuth = field(init=False)
 
     def __post_init__(self) -> None:
         # Create JWT auth dependency
@@ -296,22 +293,29 @@ Override `handle_exception` to map domain exceptions to HTTP responses:
 
 ## Step 4: Register the Controller
 
-Modify `src/delivery/http/factories.py` to register the TodoController:
+Modify `src/delivery/http/factories.py` to include the TodoController:
 
 ```python
 # src/delivery/http/factories.py
 # Add this import at the top
 from delivery.http.controllers.todo.controllers import TodoController
 
-# In the FastAPIFactory._register_controllers method, add:
-def _register_controllers(self, router: APIRouter) -> None:
-    # ... existing controllers ...
 
-    # Register TodoController
-    self._container.resolve(TodoController).register(router)
+@dataclass(kw_only=True)
+class FastAPIFactory:
+    # ... existing controller fields ...
+    _todo_controller: TodoController  # Add this field
+
+    def _register_controllers(self, app: FastAPI) -> None:
+        # ... existing controller registrations ...
+
+        # Register TodoController
+        todo_router = APIRouter(tags=["todo"])
+        self._todo_controller.register(todo_router)
+        app.include_router(todo_router)
 ```
 
-Find the `_register_controllers` method and add the new controller registration.
+The controller is declared as a dataclass field and auto-resolved by the IoC container when `FastAPIFactory` is instantiated.
 
 ## Step 5: Register with Django Admin
 

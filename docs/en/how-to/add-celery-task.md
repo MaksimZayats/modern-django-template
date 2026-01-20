@@ -106,11 +106,27 @@ Edit `src/delivery/tasks/factories.py`:
 from delivery.tasks.tasks.send_email import SendEmailTaskController
 
 
+@dataclass(kw_only=True)
 class TasksRegistryFactory:
-    def _register_tasks(self, celery_app: Celery) -> None:
-        # ... existing registrations ...
-        self._container.resolve(SendEmailTaskController).register(celery_app)
+    _celery_app_factory: CeleryAppFactory
+    _ping_controller: PingTaskController
+    _send_email_controller: SendEmailTaskController  # Add as field
+    _instance: TasksRegistry | None = field(default=None, init=False)
+
+    def __call__(self) -> TasksRegistry:
+        if self._instance is not None:
+            return self._instance
+
+        celery_app = self._celery_app_factory()
+        registry = TasksRegistry(_celery_app=celery_app)
+        self._ping_controller.register(celery_app)
+        self._send_email_controller.register(celery_app)  # Register it
+
+        self._instance = registry
+        return self._instance
 ```
+
+Controllers are declared as dataclass fields and auto-resolved by the IoC container.
 
 ### 4. Add to Registry (Optional)
 

@@ -130,20 +130,42 @@ class TodoService:
 
 ## Step 5: TransactionController Tracing
 
-The `TransactionController` automatically creates spans with:
+The `TransactionController` uses `traced_atomic` to combine database transactions with Logfire tracing:
 
-- Controller name
-- Method name
-- Transaction outcome
+```python
+# src/infrastructure/delivery/controllers.py
+from infrastructure.frameworks.logfire.transaction import traced_atomic
+
+
+@dataclass(kw_only=True)
+class TransactionController(Controller, ABC):
+    def _add_transaction(self, method: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(method)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            with traced_atomic(
+                "controller transaction",
+                controller=type(self).__name__,
+                method=method.__name__,
+            ):
+                return method(*args, **kwargs)
+
+        return wrapper
+```
+
+When you extend `TransactionController`, every public method automatically gets:
+
+- **Database transaction**: Wrapped in `@transaction.atomic`
+- **Logfire span**: Named "controller transaction" with attributes
+- **Span attributes**: Controller name and method name for filtering
 
 ```python
 # Automatically traced when extending TransactionController
 @dataclass(kw_only=True)
 class TodoController(TransactionController):
     def list_todos(self, request: AuthenticatedRequest) -> TodoListSchema:
-        # This method is automatically wrapped with:
-        # - Transaction handling
-        # - Logfire span: "TodoController.list_todos"
+        # This method is automatically wrapped with traced_atomic:
+        # - Span name: "controller transaction"
+        # - Span attributes: controller="TodoController", method="list_todos"
         ...
 ```
 

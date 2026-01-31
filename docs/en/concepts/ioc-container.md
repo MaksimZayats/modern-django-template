@@ -26,27 +26,27 @@ class UserController:
 
 The IoC container is the "external provider" that creates and connects components.
 
-## The punq Container
+## The diwire Container
 
-This project uses [punq](https://github.com/bobthemighty/punq), a lightweight Python DI container.
+This project uses [diwire](https://github.com/maksimzayats/diwire), a lightweight Python DI container with built-in auto-registration.
 
 Basic usage:
 
 ```python
-from punq import Container
+from diwire import Container
 
 container = Container()
 container.register(UserService)  # Register service
 service = container.resolve(UserService)  # Get instance
 ```
 
-## AutoRegisteringContainer
+## Auto-Registration
 
-The project extends punq with `AutoRegisteringContainer` that automatically registers services when resolved:
+The diwire `Container` automatically registers services when resolved (via `autoregister=True`, enabled by default):
 
 ```python
 # No explicit registration needed!
-container = AutoRegisteringContainer()
+container = Container(autoregister_default_lifetime=Lifetime.SINGLETON)
 service = container.resolve(UserService)  # Auto-registered and returned
 ```
 
@@ -109,6 +109,9 @@ The `ContainerFactory` creates configured containers:
 
 ```python
 # src/ioc/container.py
+from diwire import Container, Lifetime
+
+
 class ContainerFactory:
     def __call__(
         self,
@@ -116,8 +119,8 @@ class ContainerFactory:
         configure_django: bool = True,
         configure_logging: bool = True,
         instrument_libraries: bool = True,
-    ) -> AutoRegisteringContainer:
-        container = AutoRegisteringContainer()
+    ) -> Container:
+        container = Container(autoregister_default_lifetime=Lifetime.SINGLETON)
 
         # It's required to configure Django before any registrations due to model imports
         if configure_django:
@@ -133,19 +136,19 @@ class ContainerFactory:
 
         return container
 
-    def _configure_django(self, container: AutoRegisteringContainer) -> None:
+    def _configure_django(self, container: Container) -> None:
         configurator = container.resolve(DjangoConfigurator)
         configurator.configure(django_settings_module="configs.django")
 
-    def _configure_logging(self, container: AutoRegisteringContainer) -> None:
+    def _configure_logging(self, container: Container) -> None:
         configurator = container.resolve(LoggingConfigurator)
         configurator.configure()
 
-    def _instrument_libraries(self, container: AutoRegisteringContainer) -> None:
+    def _instrument_libraries(self, container: Container) -> None:
         instrumentor = container.resolve(OpenTelemetryInstrumentor)
         instrumentor.instrument_libraries()
 
-    def _register(self, container: AutoRegisteringContainer) -> None:
+    def _register(self, container: Container) -> None:
         # Import registry functions here to avoid imports before setting up Django
         from ioc.registries import Registry
 
@@ -173,7 +176,7 @@ When resolving by string instead of type:
 
 ```python
 # src/ioc/registries.py
-from punq import Container, Scope
+from diwire import Container, Lifetime
 
 from delivery.http.factories import FastAPIFactory
 
@@ -184,7 +187,7 @@ class Registry:
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
 ```
 
@@ -205,7 +208,7 @@ class Registry:
         container.register(
             SettingsProtocol,
             factory=lambda: container.resolve(ConcreteSettings),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
 ```
 
@@ -243,7 +246,7 @@ Each test gets a fresh container:
 
 ```python
 @pytest.fixture(scope="function")
-def container() -> AutoRegisteringContainer:
+def container() -> Container:
     return ContainerFactory()()
 ```
 
@@ -252,7 +255,7 @@ def container() -> AutoRegisteringContainer:
 Register mocks before resolving:
 
 ```python
-def test_with_mock(container: AutoRegisteringContainer) -> None:
+def test_with_mock(container: Container) -> None:
     mock_service = MagicMock()
     container.register(UserService, instance=mock_service)
 
@@ -266,7 +269,7 @@ Use container-based factories for test setup:
 
 ```python
 class TestClientFactory(ContainerBasedFactory):
-    def __init__(self, container: AutoRegisteringContainer) -> None:
+    def __init__(self, container: Container) -> None:
         self._container = container
 
     def __call__(self, auth_for_user: User | None = None) -> TestClient:

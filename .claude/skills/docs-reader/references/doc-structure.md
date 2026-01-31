@@ -30,7 +30,7 @@ docs/en/
 ├── concepts/
 │   ├── index.md                       # Concepts overview
 │   ├── service-layer.md               # The Golden Rule, why services matter
-│   ├── ioc-container.md               # punq DI, registration patterns
+│   ├── ioc-container.md               # diwire DI, registration patterns
 │   ├── controller-pattern.md          # Controller and AsyncController
 │   ├── factory-pattern.md             # FastAPIFactory, CeleryAppFactory
 │   └── pydantic-settings.md           # BaseSettings, environment mapping
@@ -64,7 +64,7 @@ docs/en/
 | File | What It Teaches | Prerequisites |
 |------|-----------------|---------------|
 | `01-model-and-service.md` | Django models, service pattern | None |
-| `02-ioc-registration.md` | punq container, dependency injection | Step 1 |
+| `02-ioc-registration.md` | diwire container, dependency injection | Step 1 |
 | `03-http-api.md` | FastAPI controllers, schemas | Steps 1-2 |
 | `04-celery-tasks.md` | Task controllers, registry | Steps 1-3 |
 | `05-observability.md` | Logfire integration, tracing | Steps 1-4 |

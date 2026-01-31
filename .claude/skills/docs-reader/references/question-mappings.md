@@ -36,7 +36,7 @@ This reference provides comprehensive mappings from common user questions to the
 | Question | Primary Doc | Answer Location |
 |----------|-------------|-----------------|
 | "How does dependency injection work?" | `concepts/ioc-container.md` | Full document |
-| "What is punq?" | `concepts/ioc-container.md` | Introduction |
+| "What is diwire?" | `concepts/ioc-container.md` | Introduction |
 | "How do I register a service?" | `concepts/ioc-container.md` | Registration examples |
 | "What's the difference between singleton and transient?" | `concepts/ioc-container.md` | Scope section |
 | "How do I resolve dependencies?" | `concepts/ioc-container.md` | Resolution examples |

@@ -164,14 +164,14 @@ class ProductService:
 Edit `src/ioc/registries/core.py`:
 
 ```python
-from punq import Container, Scope
+from diwire import Container, Lifetime
 
 from core.products.services import ProductService
 
 
 def _register_services(container: Container) -> None:
     # ... existing registrations
-    container.register(ProductService, scope=Scope.singleton)
+    container.register(ProductService, lifetime=Lifetime.SINGLETON)
 ```
 
 ## Phase 2: Delivery Layer Setup
@@ -331,14 +331,14 @@ class ProductController(Controller):
 Edit `src/ioc/registries/delivery.py`:
 
 ```python
-from punq import Container, Scope
+from diwire import Container, Lifetime
 
 from delivery.http.products.controllers import ProductController
 
 
 def _register_http_controllers(container: Container) -> None:
     # ... existing registrations
-    container.register(ProductController, scope=Scope.singleton)
+    container.register(ProductController, lifetime=Lifetime.SINGLETON)
 ```
 
 ### Step 10: Update FastAPIFactory

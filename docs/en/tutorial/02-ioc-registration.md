@@ -4,7 +4,7 @@ Understand how the dependency injection container automatically wires your servi
 
 ## What You'll Learn
 
-- How `AutoRegisteringContainer` works
+- How diwire's `Container` auto-registration works
 - When explicit registration is needed
 - How to resolve dependencies
 
@@ -14,7 +14,7 @@ Understand how the dependency injection container automatically wires your servi
 
 ## Understanding Auto-Registration
 
-The project uses an `AutoRegisteringContainer` that automatically registers services when they're first resolved. This means:
+The project uses a diwire `Container` that automatically registers services when they're first resolved. This means:
 
 **You don't need to register `TodoService` anywhere.**
 
@@ -35,8 +35,8 @@ class ContainerFactory:
         configure_django: bool = True,
         configure_logging: bool = True,
         instrument_libraries: bool = True,
-    ) -> AutoRegisteringContainer:
-        container = AutoRegisteringContainer()
+    ) -> Container:
+        container = Container()
 
         if configure_django:
             self._configure_django(container)
@@ -51,11 +51,11 @@ class ContainerFactory:
 
         return container
 
-    def _configure_django(self, container: AutoRegisteringContainer) -> None:
+    def _configure_django(self, container: Container) -> None:
         configurator = container.resolve(DjangoConfigurator)
         configurator.configure(django_settings_module="configs.django")
 
-    def _register(self, container: AutoRegisteringContainer) -> None:
+    def _register(self, container: Container) -> None:
         from ioc.registries import Registry
 
         registry = container.resolve(Registry)
@@ -143,7 +143,7 @@ When resolving by string instead of type:
 
 ```python
 # src/ioc/registries.py
-from punq import Container, Scope
+from diwire import Container, Lifetime
 
 from delivery.http.factories import FastAPIFactory
 
@@ -154,7 +154,7 @@ class Registry:
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
 ```
 
@@ -176,7 +176,7 @@ class Registry:
         container.register(
             MyProtocol,
             factory=lambda: container.resolve(ConcreteImplementation),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
 ```
 

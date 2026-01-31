@@ -67,7 +67,7 @@ class Test<Model>Factory(ContainerBasedFactory):
 Add to `tests/integration/conftest.py`:
 
 ```python
-from infrastructure.frameworks.punq import AutoRegisteringContainer
+from diwire import Container
 from tests.integration.factories import Test < Model > Factory
 
 
@@ -76,7 +76,7 @@ def <model > _factory(
     transactional_db: None
 
 ,
-container: AutoRegisteringContainer,
+container: Container,
 ) -> Test < Model > Factory:
 return Test < Model > Factory(container=container)
 ```
@@ -266,14 +266,14 @@ import pytest
 
 from core. < domain >.services
 import < Domain > Service, < Domain > NotFoundError
-from infrastructure.frameworks.punq import AutoRegisteringContainer
+from diwire import Container
 
 
 class TestWithMockedService:
     @pytest.mark.django_db(transaction=True)
     def test_handles_service_error(
             self,
-            container: AutoRegisteringContainer,
+            container: Container,
             user_factory: TestUserFactory,
     ) -> None:
         # Create mock

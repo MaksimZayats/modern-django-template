@@ -133,7 +133,7 @@ class TestErrorHandling:
     @pytest.mark.django_db(transaction=True)
     def test_service_exception_with_mock(
         self,
-        container: AutoRegisteringContainer,
+        container: Container,
         user_factory: TestUserFactory,
     ) -> None:
         mock_service = MagicMock(spec=ItemService)
@@ -306,7 +306,7 @@ class TestNotificationTask:
     @pytest.mark.django_db(transaction=True)
     def test_task_calls_service(
         self,
-        container: AutoRegisteringContainer,
+        container: Container,
         celery_worker_factory: TestCeleryWorkerFactory,
         tasks_registry_factory: TestTasksRegistryFactory,
     ) -> None:

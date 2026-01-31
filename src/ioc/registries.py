@@ -1,4 +1,4 @@
-from punq import Container, Scope
+from diwire import Container, Lifetime
 
 from delivery.http.factories import FastAPIFactory
 
@@ -9,5 +9,5 @@ class Registry:
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )

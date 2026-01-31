@@ -47,7 +47,7 @@ The tutorial builds a complete Todo List feature:
 | Topic | File | Key Content |
 |-------|------|-------------|
 | Service Layer | `docs/en/concepts/service-layer.md` | The Golden Rule, why services matter |
-| IoC Container | `docs/en/concepts/ioc-container.md` | Dependency injection with punq |
+| IoC Container | `docs/en/concepts/ioc-container.md` | Dependency injection with diwire |
 | Controller Pattern | `docs/en/concepts/controller-pattern.md` | HTTP, Celery controllers |
 | Factory Pattern | `docs/en/concepts/factory-pattern.md` | FastAPIFactory, CeleryAppFactory |
 | Pydantic Settings | `docs/en/concepts/pydantic-settings.md` | Environment-based configuration |

@@ -50,7 +50,7 @@ All code must be compatible with `mypy --strict` mode.
 
 ## Architecture Overview
 
-This is a Django + Celery application using **punq** for dependency injection.
+This is a Django + Celery application using **diwire** for dependency injection.
 
 ### Module Structure
 
@@ -131,7 +131,7 @@ class ItemService:
 
 ### Registering Services
 
-Services are **auto-registered** by the IoC container - no explicit registration needed. When a service is resolved, the `AutoRegisteringContainer` automatically registers it as a singleton based on its `__init__` type annotations.
+Services are **auto-registered** by the IoC container - no explicit registration needed. When a service is resolved, diwire's `Container` automatically registers it as a singleton based on its `__init__` type annotations.
 
 ```python
 # No registration needed - just resolve the service
@@ -175,12 +175,12 @@ The container is created via `ContainerFactory` in `src/ioc/container.py`:
 from ioc.container import ContainerFactory
 
 container_factory = ContainerFactory()
-container = container_factory()  # Creates AutoRegisteringContainer
+container = container_factory()  # Creates diwire Container
 ```
 
-### AutoRegisteringContainer
+### Container Auto-Registration
 
-The `AutoRegisteringContainer` automatically registers services when resolved:
+The `Container` automatically registers services when resolved:
 
 ```python
 # No explicit registration needed - just resolve
@@ -209,13 +209,13 @@ class Registry:
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
         # Protocol to concrete implementation mapping
         container.register(
             ApplicationSettingsProtocol,
             factory=lambda: container.resolve(ApplicationSettings),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
 ```
 
@@ -376,7 +376,7 @@ All factories extend `ContainerBasedFactory` and receive the container via const
 
 ```python
 class ContainerBasedFactory(BaseFactory, ABC):
-    def __init__(self, container: AutoRegisteringContainer) -> None:
+    def __init__(self, container: Container) -> None:
         self._container = container
 ```
 
@@ -386,18 +386,18 @@ Each test gets a fresh container (function-scoped fixtures in `tests/integration
 
 ```python
 @pytest.fixture(scope="function")
-def container() -> AutoRegisteringContainer:
+def container() -> Container:
     container_factory = ContainerFactory()
     return container_factory()
 
 @pytest.fixture(scope="function")
-def test_client_factory(container: AutoRegisteringContainer) -> TestClientFactory:
+def test_client_factory(container: Container) -> TestClientFactory:
     return TestClientFactory(container=container)
 
 @pytest.fixture(scope="function")
 def user_factory(
     transactional_db: None,
-    container: AutoRegisteringContainer,
+    container: Container,
 ) -> TestUserFactory:
     return TestUserFactory(container=container)
 ```
@@ -457,7 +457,7 @@ class TestPingTaskController:
 To mock a component, register it on the container before creating factories:
 
 ```python
-def test_with_mock_service(container: AutoRegisteringContainer) -> None:
+def test_with_mock_service(container: Container) -> None:
     # Override before creating test client
     mock_service = MagicMock()
     container.register(JWTService, instance=mock_service)
@@ -504,7 +504,7 @@ All new code MUST adhere to these requirements:
 2. **Type Safety** - All code must pass `mypy --strict`. Use precise type hints, avoid `Any` where possible. Leverage Python 3.14's improved type inference.
 
 3. **Industry Best Practices** - Do not reinvent the wheel. Use established patterns:
-   - Dependency injection via IoC container (punq)
+   - Dependency injection via IoC container (diwire)
    - Service layer for all database operations
    - Pydantic for validation and serialization
    - Factory pattern for testability

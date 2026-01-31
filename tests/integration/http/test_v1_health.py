@@ -2,10 +2,10 @@ from http import HTTPStatus
 from unittest.mock import MagicMock
 
 import pytest
+from diwire import Container
 
 from core.health.services import HealthCheckError, HealthService
 from delivery.http.controllers.health.controllers import HealthCheckResponseSchema
-from infrastructure.frameworks.punq.auto_registering import AutoRegisteringContainer
 from tests.integration.factories import TestClientFactory
 
 
@@ -26,7 +26,7 @@ class TestHealthController:
 
     def test_health_check_service_unavailable(
         self,
-        container: AutoRegisteringContainer,
+        container: Container,
     ) -> None:
         mock_service = MagicMock(spec=HealthService)
         mock_service.check_system_health.side_effect = HealthCheckError()

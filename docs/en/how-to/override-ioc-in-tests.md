@@ -22,7 +22,7 @@ Register a mock before creating test factories:
 ```python
 from unittest.mock import MagicMock
 
-def test_with_mock(container: AutoRegisteringContainer) -> None:
+def test_with_mock(container: Container) -> None:
     # 1. Create mock
     mock_service = MagicMock()
 
@@ -52,7 +52,7 @@ from tests.integration.factories import TestClientFactory
 
 @pytest.mark.django_db(transaction=True)
 def test_checkout_with_mock_payment(
-    container: AutoRegisteringContainer,
+    container: Container,
 ) -> None:
     # Create mock payment service
     mock_payment = MagicMock(spec=PaymentService)
@@ -80,7 +80,7 @@ def test_checkout_with_mock_payment(
 ```python
 @pytest.mark.django_db(transaction=True)
 def test_product_with_mock_inventory(
-    container: AutoRegisteringContainer,
+    container: Container,
     user: User,
 ) -> None:
     # Mock inventory service
@@ -111,7 +111,7 @@ from core.email.services import EmailService, EmailDeliveryError
 
 @pytest.mark.django_db(transaction=True)
 def test_handles_email_failure(
-    container: AutoRegisteringContainer,
+    container: Container,
     user: User,
 ) -> None:
     # Mock email service to fail
@@ -140,7 +140,7 @@ from core.feature.settings import FeatureSettings
 
 @pytest.mark.django_db(transaction=True)
 def test_with_feature_flag_enabled(
-    container: AutoRegisteringContainer,
+    container: Container,
 ) -> None:
     # Create mock settings
     mock_settings = MagicMock(spec=FeatureSettings)
@@ -168,7 +168,7 @@ import pytest
 
 
 @pytest.fixture
-def mock_external_api(container: AutoRegisteringContainer) -> MagicMock:
+def mock_external_api(container: Container) -> MagicMock:
     """Fixture providing a mocked external API client."""
     mock = MagicMock(spec=ExternalAPIClient)
     mock.fetch_data.return_value = {"data": "mocked"}
@@ -219,7 +219,7 @@ For Celery tasks, mock at the service level:
 ```python
 @pytest.mark.django_db(transaction=True)
 def test_task_with_mock(
-    container: AutoRegisteringContainer,
+    container: Container,
     celery_worker_factory: TestCeleryWorkerFactory,
     tasks_registry_factory: TestTasksRegistryFactory,
 ) -> None:
@@ -264,7 +264,7 @@ container.register(Service, instance=mock)  # Too late!
 ```python
 # container fixture must come first
 def test_something(
-    container: AutoRegisteringContainer,  # First - creates container
+    container: Container,  # First - creates container
     test_client_factory: TestClientFactory,  # Uses container
     user: User,  # Uses database
 ) -> None:

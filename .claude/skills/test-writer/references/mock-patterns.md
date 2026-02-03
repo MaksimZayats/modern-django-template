@@ -22,13 +22,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.product.services import ProductService, ProductNotFoundError
-from infrastructure.frameworks.punq import AutoRegisteringContainer
+from diwire import Container
 from tests.integration.factories import TestClientFactory, TestUserFactory
 
 
 @pytest.mark.django_db(transaction=True)
 def test_with_mocked_service(
-        container: AutoRegisteringContainer,
+        container: Container,
         user_factory: TestUserFactory,
 ) -> None:
     # Step 1: Create mock with spec (type safety)
@@ -207,7 +207,7 @@ def mock_jwt_service() -> MagicMock:
 
 @pytest.mark.django_db(transaction=True)
 def test_with_mocked_jwt(
-    container: AutoRegisteringContainer,
+    container: Container,
     mock_jwt_service: MagicMock,
     test_client_factory: TestClientFactory,
     user_factory: TestUserFactory,
@@ -248,7 +248,7 @@ When you need to mock multiple services:
 ```python
 @pytest.mark.django_db(transaction=True)
 def test_with_multiple_mocks(
-    container: AutoRegisteringContainer,
+    container: Container,
     user_factory: TestUserFactory,
 ) -> None:
     # Create all mocks
@@ -347,6 +347,6 @@ def test_something():
     container.register(Service, instance=mock)
 
 # CORRECT - Using fixture container
-def test_something(container: AutoRegisteringContainer):  # Use fixture
+def test_something(container: Container):  # Use fixture
     container.register(Service, instance=mock)
 ```

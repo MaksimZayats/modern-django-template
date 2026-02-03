@@ -159,14 +159,14 @@ Test factories extend `ContainerBasedFactory` to access the IoC container:
 from abc import ABC
 from dataclasses import dataclass
 
-from ioc.container import AutoRegisteringContainer
+from diwire import Container
 
 
 @dataclass
 class ContainerBasedFactory(ABC):
     """Base factory with access to IoC container."""
 
-    _container: AutoRegisteringContainer
+    _container: Container
 ```
 
 ### TestClientFactory
@@ -236,7 +236,7 @@ class Registry:
         container.register(
             "FastAPIFactory",
             factory=lambda: container.resolve(FastAPIFactory),
-            scope=Scope.singleton,
+            lifetime=Lifetime.SINGLETON,
         )
 ```
 

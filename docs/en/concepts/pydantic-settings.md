@@ -61,7 +61,7 @@ Unprefixed variables:
 
 ## Auto-Registration in IoC
 
-The `AutoRegisteringContainer` detects `BaseSettings` subclasses and registers them with a factory:
+The diwire `Container` detects `BaseSettings` subclasses and registers them with a factory:
 
 ```python
 # When resolving a settings class:
